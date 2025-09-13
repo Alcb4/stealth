@@ -219,7 +219,7 @@ export async function getChunkedTransactions(
         })
         
         // Extract unique transaction hashes from logs
-        const txHashes = [...new Set(logs.map(log => log.transactionHash))]
+        const txHashes = Array.from(new Set(logs.map(log => log.transactionHash)))
         
         // Fetch specific transactions that we know are relevant (limit to avoid overwhelming)
         const chunkTransactions: any[] = []
@@ -347,34 +347,34 @@ export async function getOutstandingDebtFromBlockSearch(tokenAddress: string, da
         
         
         const wallet = tx.from.toLowerCase()
-        const currentDebt = outstandingDebts.get(wallet) || 0n
+        const currentDebt = outstandingDebts.get(wallet) || BigInt(0)
         
         // Update debt based on net MAV amount from transfer events
         // Positive amount = borrowed (increases debt), Negative amount = repaid (decreases debt)
         let newDebt = currentDebt + amount
         
         // Apply floor of 0 - no negative balances allowed
-        if (newDebt < 0n) {
+        if (newDebt < BigInt(0)) {
           console.log(`  🔧 ${wallet}: Flooring negative balance from ${Number(newDebt) / 1e18} to 0 MAV`)
-          newDebt = 0n
+          newDebt = BigInt(0)
         }
         
         outstandingDebts.set(wallet, newDebt)
         
-        if (amount > 0n) {
+        if (amount > BigInt(0)) {
           console.log(`  📈 ${wallet}: +${Number(amount) / 1e18} MAV (borrowed) = ${Number(newDebt) / 1e18} MAV`)
-        } else if (amount < 0n) {
+        } else if (amount < BigInt(0)) {
           console.log(`  📉 ${wallet}: ${Number(amount) / 1e18} MAV (repaid) = ${Number(newDebt) / 1e18} MAV`)
         }
         
   } catch (error) {
-        console.error(`❌ Error processing transaction ${tx.txHash}:`, error.message)
+        console.error(`❌ Error processing transaction ${tx.txHash}:`, error instanceof Error ? error.message : String(error))
       }
     }
     
     // Convert to lenders array (only wallets with outstanding debt > 1 MAV to filter dust)
     const lenders = Array.from(outstandingDebts.entries())
-      .filter(([_, debt]) => debt > 1000000000000000000n) // Filter out dust (< 1 MAV)
+      .filter(([_, debt]) => debt > BigInt(1000000000000000000)) // Filter out dust (< 1 MAV)
       .map(([wallet, debt]) => ({
         address: wallet,
         balance: debt, // Use 'balance' to match LenderData interface
@@ -382,7 +382,7 @@ export async function getOutstandingDebtFromBlockSearch(tokenAddress: string, da
       }))
       .sort((a, b) => Number(b.balance - a.balance)) // Sort by debt amount descending
     
-    const totalLent = lenders.reduce((sum, lender) => sum + lender.balance, 0n)
+    const totalLent = lenders.reduce((sum, lender) => sum + lender.balance, BigInt(0))
     
     // Convert balances from wei to MAV (divide by 10^18)
     const lendersInMAV = lenders.map(lender => ({
@@ -392,7 +392,7 @@ export async function getOutstandingDebtFromBlockSearch(tokenAddress: string, da
     
     // Calculate percentages
     lendersInMAV.forEach(lender => {
-      lender.poolPercentage = totalLent > 0n ? Number((BigInt(Math.floor(lender.balance * 1e18)) * 10000n) / totalLent) / 100 : 0
+      lender.poolPercentage = totalLent > BigInt(0) ? Number((BigInt(Math.floor(lender.balance * 1e18)) * BigInt(10000)) / totalLent) / 100 : 0
     })
     
     console.log(`📊 Found ${lenders.length} wallets with outstanding debt`)
@@ -409,7 +409,7 @@ export async function getOutstandingDebtFromBlockSearch(tokenAddress: string, da
     
     } catch (error) {
     console.error('❌ Error in method-based search:', error)
-    throw new Error(`Method-based search failed: ${error.message}`)
+    throw new Error(`Method-based search failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
@@ -430,7 +430,7 @@ async function getLaunchPoolBalance(): Promise<bigint> {
   } catch (error) {
     console.log(`⚠️  Launch token totalSupply not available, using default liquidity`)
     console.log(`📊 Using default available liquidity: 329,568.8 MAV`)
-    return 329568801605593620299305n // Default pool size from previous runs
+    return BigInt(329568801605593620299305) // Default pool size from previous runs
   }
 }
 
@@ -475,7 +475,7 @@ async function getActualMAVAmountFromEvents(tx: any, userAddress: string): Promi
     })
     
     // Calculate net MAV amount (borrowed - repaid)
-    let netMAVAmount = 0n
+    let netMAVAmount = BigInt(0)
     
     // Add MAV received (borrowing)
     for (const event of mavToUser) {
@@ -503,8 +503,8 @@ async function getActualMAVAmountFromEvents(tx: any, userAddress: string): Promi
 async function decodeTransactionData(tx: any, methodId: string): Promise<{ amount: bigint } | null> {
   try {
     // MAV token has 18 decimals, so we need to account for this
-    const MAV_DECIMALS = 18n
-    const DECIMAL_FACTOR = 10n ** MAV_DECIMALS
+    const MAV_DECIMALS = BigInt(18)
+    const DECIMAL_FACTOR = BigInt(1000000000000000000) // 10^18
     
     // For now, we'll extract amounts from the input data
     // This is a simplified approach - in production you'd want proper ABI decoding
@@ -607,7 +607,7 @@ async function decodeTransactionData(tx: any, methodId: string): Promise<{ amoun
             }
           }
         } catch (e) {
-          console.error(`❌ Network error (attempt ${retries + 1}):`, e.message)
+          console.error(`❌ Network error (attempt ${retries + 1}):`, e instanceof Error ? e.message : String(e))
           retries++
           if (retries < 3) {
             await new Promise(r => setTimeout(r, 1000))
@@ -731,7 +731,7 @@ async function searchTransactionsByChunkedApproach(days: number = 30): Promise<{
         console.log(`  📊 Found ${logs.length} logs in chunk`)
         
         // Get unique transaction hashes
-        const uniqueTxHashes = [...new Set(logs.map(log => log.transactionHash))]
+        const uniqueTxHashes = Array.from(new Set(logs.map(log => log.transactionHash)))
         console.log(`  📊 Unique transactions in chunk: ${uniqueTxHashes.length}`)
         
         // Fetch transaction details for unique hashes
@@ -754,18 +754,18 @@ async function searchTransactionsByChunkedApproach(days: number = 30): Promise<{
             
             console.log(`    🎯 Found target method: ${methodId} from ${tx.from}`)
           } catch (txError) {
-            console.error(`    ❌ Error fetching transaction ${txHash}:`, txError.message)
+            console.error(`    ❌ Error fetching transaction ${txHash}:`, txError instanceof Error ? txError.message : String(txError))
           }
         }
         
         console.log(`  📊 Chunk complete: ${allTransactions.length} target transactions found so far`)
         
       } catch (chunkError) {
-        console.error(`❌ Error in chunk ${currentBlockNum}-${actualEndBlock}:`, chunkError.message)
+        console.error(`❌ Error in chunk ${currentBlockNum}-${actualEndBlock}:`, chunkError instanceof Error ? chunkError.message : String(chunkError))
         // Continue with next chunk
       }
       
-      currentBlockNum = actualEndBlock + 1n
+      currentBlockNum = actualEndBlock + BigInt(1)
     }
     
     console.log(`📊 Total target method transactions found: ${allTransactions.length}`)
@@ -785,7 +785,7 @@ async function searchTransactionsByChunkedApproach(days: number = 30): Promise<{
 
   } catch (error) {
     console.error('❌ Error in chunked approach:', error)
-    throw new Error(`Chunked approach failed: ${error.message}`)
+    throw new Error(`Chunked approach failed: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
